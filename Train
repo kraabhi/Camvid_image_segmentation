@@ -62,24 +62,14 @@ learn.recorder.plot()
 
 learn.fit_one_cycle(10, slice(1e-3),pct_start=0.9)
 
-epoch	train_loss	valid_loss	acc_camvid	time
-0	1.451904	1.014007	0.750147	03:19
-1	1.004353	0.792869	0.815128	03:19
-2	0.786249	0.583955	0.847580	03:18
-3	0.671458	0.634363	0.837629	03:18
-4	0.619152	0.525971	0.847299	03:18
-5	0.592728	0.505765	0.863075	03:18
-6	0.620553	0.610070	0.843623	03:17
-7	0.541874	0.414534	0.883160	03:17
-8	0.493982	0.406774	0.891475	03:16
-9	0.430034	0.341108	0.902195	03:16
+/
 
 learn.save("camvid_rsn36_v1")
 
 learn.unfreeze()
 learn.fit_one_cycle(10, slice(1e-5,(1e-3)/4), pct_start= 0.6) # pct_start signifies how much of number of epochs lr must increase
 
-epoch	train_loss	valid_loss	acc_camvid	time
+# epoch	train_loss	valid_loss	acc_camvid	time
 0	0.366066	0.313555	0.912018	03:25
 1	0.355876	0.318937	0.909805	03:25
 2	0.344181	0.304597	0.908839	03:24
@@ -126,3 +116,21 @@ learn.load("camvid_rsn50_v2")
 
 learn.lr_find()
 learn.recorder.plot()
+lr = ((1e-4)- (1e-5))/2
+learn.fit_one_cycle(10, slice(lr), pct_start=0.7)
+
+epoch	train_loss	valid_loss	acc_camvid	time
+0	0.400996	0.301120	0.916617	14:01
+1	0.360529	0.290095	0.917410	13:50
+2	0.340898	0.274286	0.921597	13:49
+3	0.327840	0.272843	0.922496	13:49
+4	0.311188	0.273363	0.921526	13:49
+5	0.310021	0.264988	0.925523	13:49
+6	0.290089	0.258497	0.924960	13:50
+7	0.278192	0.258185	0.926075	13:51
+8	0.260849	0.257576	0.925466	13:51
+9	0.249830	0.250741	0.927268	13:51
+
+learn.save("camvid_rsn36_v3")
+
+learn.export()
