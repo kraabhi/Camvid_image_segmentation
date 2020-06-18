@@ -1,0 +1,128 @@
+%reload_ext autoreload
+%autoreload 2
+%matplotlib inline
+
+from fastai import *
+from fastai.vision import *
+from fastai.callbacks.hooks import *
+from fastai.utils.mem import *
+
+path = untar_data(URLs.CAMVID)
+path_img = path/'images'
+path_lbl = path/'labels'
+
+fname = get_image_files(path_img)
+fname[:3]
+
+lname = get_image_files(path_lbl)
+lname[:3]
+
+open_image(fname[0]).show(figsize=(5,5))
+get_fname = lambda x : path_lbl/'{}_P{}'.format(x.stem, x.suffix)
+open_mask(get_fname(fname[0])).show(figsize=(5,5))
+
+mask = open_mask(get_fname(fname[0]))
+src_size = np.array(mask.size)
+mask.data
+
+code = np.loadtxt(path/'codes.txt', dtype='str')
+size = src_size//2
+
+free = gpu_mem_get_free_no_cache()
+if free > 8200:
+  bs =8
+else:
+  bs = 4
+print('free is {} and using bs:{}'.format(free, bs))
+
+src = (SegmentationItemList.from_folder(path_img)
+       .split_by_fname_file('../valid.txt')
+       .label_from_func(get_fname, classes=code))
+     
+data = (src.transform(get_transforms(), size=size, tfm_y=True)
+        .databunch(bs=bs)
+        .normalize(imagenet_stats))
+     
+data.show_batch(2, figsize=(10,12))
+
+data.show_batch(2, figsize=(10,7), ds_type=DatasetType.Valid)
+
+name2id = {v:k for k,v in enumerate(code)}
+void_code = name2id['Void']
+
+def acc_camvid(input, target):
+    target = target.squeeze(1)
+    mask = target != void_code
+    return (input.argmax(dim=1)[mask]==target[mask]).float().mean()
+    
+learn = unet_learner(data, models.resnet34, metrics= acc_camvid, wd = 1e-2)
+
+learn.lr_find()
+learn.recorder.plot()
+
+learn.fit_one_cycle(10, slice(1e-3),pct_start=0.9)
+
+epoch	train_loss	valid_loss	acc_camvid	time
+0	1.451904	1.014007	0.750147	03:19
+1	1.004353	0.792869	0.815128	03:19
+2	0.786249	0.583955	0.847580	03:18
+3	0.671458	0.634363	0.837629	03:18
+4	0.619152	0.525971	0.847299	03:18
+5	0.592728	0.505765	0.863075	03:18
+6	0.620553	0.610070	0.843623	03:17
+7	0.541874	0.414534	0.883160	03:17
+8	0.493982	0.406774	0.891475	03:16
+9	0.430034	0.341108	0.902195	03:16
+
+learn.save("camvid_rsn36_v1")
+
+learn.unfreeze()
+learn.fit_one_cycle(10, slice(1e-5,(1e-3)/4), pct_start= 0.6) # pct_start signifies how much of number of epochs lr must increase
+
+epoch	train_loss	valid_loss	acc_camvid	time
+0	0.366066	0.313555	0.912018	03:25
+1	0.355876	0.318937	0.909805	03:25
+2	0.344181	0.304597	0.908839	03:24
+3	0.336337	0.293593	0.919696	03:25
+4	0.328665	0.313158	0.912045	03:24
+5	0.321979	0.285682	0.919035	03:25
+6	0.304278	0.273869	0.926311	03:24
+7	0.278107	0.279483	0.920879	03:25
+8	0.260858	0.254494	0.928273	03:24
+9	0.245937	0.248192	0.929464	03:25
+
+learn.save("camvid_rsn36_v2")
+
+learn.recorder.plot()
+learn.freeze()
+learn.fit_one_cycle(10,slice(1e-4),pct_start = 0.7)
+
+# but as there is no improvement but actually overfitting so I stopped this trianing in between and verson 2 is the best model
+
+learn.load("camvid_rsn36_v2")
+learn.show_results(rows=3, figsize= (10,10))
+
+learn.destroy()
+
+size = src_size
+
+free = gpu_mem_get_free_no_cache()
+# the max size of bs depends on the available GPU RAM
+if free > 8200: bs=3
+else:           bs=1
+print(f"using bs={bs}, have {free}MB of GPU RAM free")
+
+# using this with full image size
+
+# this Learner object self-destroyed - it still exists, but no longer usable
+# using bs=3, have 9152MB of GPU RAM free
+
+data = (src.transform(get_transforms(), size=size, tfm_y=True)
+        .databunch(bs=bs)
+        .normalize(imagenet_stats))
+
+learn = unet_learner(data, models.resnet34, metrics=acc_camvid, wd=1e-3)
+learn.load("camvid_rsn50_v2")
+
+learn.lr_find()
+learn.recorder.plot()
